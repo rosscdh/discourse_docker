@@ -14,7 +14,7 @@ env:
   DISCOURSE_DB_SOCKET: /var/run/postgresql
   DISCOURSE_DB_HOST:
   DISCOURSE_DB_PORT:
-  SKIP_DB_AND_REDIS: '1'
+
 
 params:
   version: tests-passed
@@ -60,20 +60,20 @@ run:
         chown -R discourse:www-data /shared/log/rails
         LD_PRELOAD=$RUBY_ALLOCATOR HOME=/home/discourse USER=discourse exec thpoff chpst -u discourse:www-data -U discourse:www-data bundle exec config/unicorn_launcher -E production -c config/unicorn.conf.rb
 
-  # - file:
-  #    path: /etc/service/nginx/run
-  #    chmod: "+x"
-  #    contents: |
-  #       #!/bin/sh
-  #       exec 2>&1
-  #       exec /usr/sbin/nginx
+  - file:
+     path: /etc/service/nginx/run
+     chmod: "+x"
+     contents: |
+        #!/bin/sh
+        exec 2>&1
+        exec /usr/sbin/nginx
 
-  # - file:
-  #    path: /etc/runit/3.d/01-nginx
-  #    chmod: "+x"
-  #    contents: |
-  #      #!/bin/bash
-  #      sv stop nginx
+  - file:
+     path: /etc/runit/3.d/01-nginx
+     chmod: "+x"
+     contents: |
+       #!/bin/bash
+       sv stop nginx
 
   - file:
      path: /etc/runit/3.d/02-unicorn
@@ -108,33 +108,33 @@ run:
         # scrub broken symlinks from plugins that have been removed
         - find public/plugins/ -maxdepth 1 -xtype l -delete
 
-  # - exec:
-  #     cmd:
-  #       - "cp $home/config/nginx.sample.conf /etc/nginx/conf.d/discourse.conf"
-  #       - "rm /etc/nginx/sites-enabled/default"
-  #       - "mkdir -p /var/nginx/cache"
+  - exec:
+      cmd:
+        - "cp $home/config/nginx.sample.conf /etc/nginx/conf.d/discourse.conf"
+        - "rm /etc/nginx/sites-enabled/default"
+        - "mkdir -p /var/nginx/cache"
 
-  # - replace:
-  #     filename: /etc/nginx/nginx.conf
-  #     from: pid /run/nginx.pid;
-  #     to: daemon off;
+  - replace:
+      filename: /etc/nginx/nginx.conf
+      from: pid /run/nginx.pid;
+      to: daemon off;
 
-  # - replace:
-  #     filename: "/etc/nginx/conf.d/discourse.conf"
-  #     from: /upstream[^\}]+\}/m
-  #     to: "upstream discourse {
-  #       server 127.0.0.1:3000;
-  #     }"
+  - replace:
+      filename: "/etc/nginx/conf.d/discourse.conf"
+      from: /upstream[^\}]+\}/m
+      to: "upstream discourse {
+        server 127.0.0.1:3000;
+      }"
 
-  # - replace:
-  #     filename: "/etc/nginx/conf.d/discourse.conf"
-  #     from: /server_name.+$/
-  #     to: server_name _ ;
+  - replace:
+      filename: "/etc/nginx/conf.d/discourse.conf"
+      from: /server_name.+$/
+      to: server_name _ ;
 
-  # - replace:
-  #     filename: "/etc/nginx/conf.d/discourse.conf"
-  #     from: /client_max_body_size.+$/
-  #     to: client_max_body_size $upload_size ;
+  - replace:
+      filename: "/etc/nginx/conf.d/discourse.conf"
+      from: /client_max_body_size.+$/
+      to: client_max_body_size $upload_size ;
 
   - exec:
       cmd: echo "done configuring web"
@@ -160,29 +160,16 @@ run:
         - su discourse -c 'bundle exec rake plugin:pull_compatible_all'
       raise_on_fail: false
 
-  # - exec:
-  #     cd: $home
-  #     hook: db_migrate
-  #     cmd:
-  #       - su discourse -c 'bundle exec rake db:migrate'
-  # - exec:
-  #     cd: $home
-  #     hook: assets_precompile
-  #     cmd:
-  #       - su discourse -c 'mv config/initializers/100-secret_token.rb config/initializers/100-secret_token.rb.bak'
-  #       - su discourse -c 'mv config/initializers/100-verify_config.rb config/initializers/100-verify_config.rb.bak'
-  #       - su discourse -c 'mv config/initializers/100-watch_for_restart.rb config/initializers/100-watch_for_restart.rb.bak'
-  #       - su discourse -c 'mv config/initializers/100-wrap_parameters.rb config/initializers/100-wrap_parameters.rb.bak'
-  #       - su discourse -c 'mv config/initializers/200-first_middlewares.rb config/initializers/200-first_middlewares.rb.bak'
- 
-  #       - su discourse -c 'RAILS_ENV=production SKIP_DB_AND_REDIS=1 bundle exec rake assets:precompile'
-
-  #       - su discourse -c 'mv config/initializers/100-secret_token.rb.bak config/initializers/100-secret_token.rb'
-  #       - su discourse -c 'mv config/initializers/100-verify_config.rb.bak config/initializers/100-verify_config.rb'
-  #       - su discourse -c 'mv config/initializers/100-watch_for_restart.rb.bak config/initializers/100-watch_for_restart.rb'
-  #       - su discourse -c 'mv config/initializers/100-wrap_parameters.rb.bak config/initializers/100-wrap_parameters.rb'
-  #       - su discourse -c 'mv config/initializers/200-first_middlewares.rb.bak config/initializers/200-first_middlewares.rb'
-
+  - exec:
+      cd: $home
+      hook: db_migrate
+      cmd:
+        - su discourse -c 'bundle exec rake db:migrate'
+  - exec:
+      cd: $home
+      hook: assets_precompile
+      cmd:
+        - su discourse -c 'bundle exec rake assets:precompile'
   - file:
      path: /usr/local/bin/discourse
      chmod: +x

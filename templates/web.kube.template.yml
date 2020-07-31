@@ -14,6 +14,7 @@ env:
   DISCOURSE_DB_SOCKET: /var/run/postgresql
   DISCOURSE_DB_HOST:
   DISCOURSE_DB_PORT:
+  # Build the image and walk away
   SKIP_DB_AND_REDIS: '1'
 
 params:
@@ -108,6 +109,7 @@ run:
         # scrub broken symlinks from plugins that have been removed
         - find public/plugins/ -maxdepth 1 -xtype l -delete
 
+  # NAY: docker images are the app and only the app in question
   # - exec:
   #     cmd:
   #       - "cp $home/config/nginx.sample.conf /etc/nginx/conf.d/discourse.conf"
@@ -160,6 +162,10 @@ run:
         - su discourse -c 'bundle exec rake plugin:pull_compatible_all'
       raise_on_fail: false
 
+  #
+  # These Steps take part of the Deploy phase
+  # an initContainer can start and perform the migrations and assets precompile upload to minio/s3
+  #
   # - exec:
   #     cd: $home
   #     hook: db_migrate
@@ -233,78 +239,84 @@ run:
        echo Use: rails, rake or discourse to execute commands in production
        echo
 
-  - file:
-     path: /etc/logrotate.d/rails
-     contents: |
-        /shared/log/rails/*.log
-        {
-                rotate 7
-                dateext
-                daily
-                missingok
-                delaycompress
-                compress
-                postrotate
-                sv 1 unicorn
-                endscript
-        }
+  # NAY: no logging to anywhere except stdout, stderr
+  # - file:
+  #    path: /etc/logrotate.d/rails
+  #    contents: |
+  #       /shared/log/rails/*.log
+  #       {
+  #               rotate 7
+  #               dateext
+  #               daily
+  #               missingok
+  #               delaycompress
+  #               compress
+  #               postrotate
+  #               sv 1 unicorn
+  #               endscript
+  #       }
 
-  - file:
-     path: /etc/logrotate.d/nginx
-     contents: |
-        /var/log/nginx/*.log {
-          daily
-          missingok
-          rotate 7
-          compress
-          delaycompress
-          create 0644 www-data www-data
-          sharedscripts
-          postrotate
-            sv 1 nginx
-          endscript
-        }
+  # NAY: you dont bundle nginx with the application
+  # and you dont write to logfiles in docker
+  # - file:
+  #    path: /etc/logrotate.d/nginx
+  #    contents: |
+  #       /var/log/nginx/*.log {
+  #         daily
+  #         missingok
+  #         rotate 7
+  #         compress
+  #         delaycompress
+  #         create 0644 www-data www-data
+  #         sharedscripts
+  #         postrotate
+  #           sv 1 nginx
+  #         endscript
+  #       }
 
-  # move state out of the container this fancy is done to support rapid rebuilds of containers,
-  # we store anacron and logrotate state outside the container to ensure its maintained across builds
-  # later move this snipped into an intialization script
-  # we also ensure all the symlinks we need to /shared are in place in the correct structure
-  # this allows us to bootstrap on one machine and then run on another
-  - file:
-      path: /etc/runit/1.d/00-ensure-links
-      chmod: +x
-      contents: |
-        #!/bin/bash
-        if [[ ! -L /var/lib/logrotate ]]; then
-          rm -fr /var/lib/logrotate
-          mkdir -p /shared/state/logrotate
-          ln -s /shared/state/logrotate /var/lib/logrotate
-        fi
-        if [[ ! -L /var/spool/anacron ]]; then
-          rm -fr /var/spool/anacron
-          mkdir -p /shared/state/anacron-spool
-          ln -s /shared/state/anacron-spool /var/spool/anacron
-        fi
-        if [[ ! -d /shared/log/rails ]]; then
-          mkdir -p /shared/log/rails
-          chown -R discourse:www-data /shared/log/rails
-        fi
-        if [[ ! -d /shared/uploads ]]; then
-          mkdir -p /shared/uploads
-          chown -R discourse:www-data /shared/uploads
-        fi
-        if [[ ! -d /shared/backups ]]; then
-          mkdir -p /shared/backups
-          chown -R discourse:www-data /shared/backups
-        fi
+  # NAY: The FS on the build is not the fs on the deployment target
+  #
+  # # move state out of the container this fancy is done to support rapid rebuilds of containers,
+  # # we store anacron and logrotate state outside the container to ensure its maintained across builds
+  # # later move this snipped into an intialization script
+  # # we also ensure all the symlinks we need to /shared are in place in the correct structure
+  # # this allows us to bootstrap on one machine and then run on another
+  # - file:
+  #     path: /etc/runit/1.d/00-ensure-links
+  #     chmod: +x
+  #     contents: |
+  #       #!/bin/bash
+  #       if [[ ! -L /var/lib/logrotate ]]; then
+  #         rm -fr /var/lib/logrotate
+  #         mkdir -p /shared/state/logrotate
+  #         ln -s /shared/state/logrotate /var/lib/logrotate
+  #       fi
+  #       if [[ ! -L /var/spool/anacron ]]; then
+  #         rm -fr /var/spool/anacron
+  #         mkdir -p /shared/state/anacron-spool
+  #         ln -s /shared/state/anacron-spool /var/spool/anacron
+  #       fi
+  #       if [[ ! -d /shared/log/rails ]]; then
+  #         mkdir -p /shared/log/rails
+  #         chown -R discourse:www-data /shared/log/rails
+  #       fi
+  #       if [[ ! -d /shared/uploads ]]; then
+  #         mkdir -p /shared/uploads
+  #         chown -R discourse:www-data /shared/uploads
+  #       fi
+  #       if [[ ! -d /shared/backups ]]; then
+  #         mkdir -p /shared/backups
+  #         chown -R discourse:www-data /shared/backups
+  #       fi
 
-        rm -rf /shared/tmp/{backups,restores}
-        mkdir -p /shared/tmp/{backups,restores}
-        chown -R discourse:www-data /shared/tmp/{backups,restores}
+  #       rm -rf /shared/tmp/{backups,restores}
+  #       mkdir -p /shared/tmp/{backups,restores}
+  #       chown -R discourse:www-data /shared/tmp/{backups,restores}
 
-  # change login directory to Discourse home
-  - file:
-     path: /root/.bash_profile
-     chmod: 644
-     contents: |
-        cd $home
+  # NAY: the working dir should always be the palce where the app resides
+  # # change login directory to Discourse home
+  # - file:
+  #    path: /root/.bash_profile
+  #    chmod: 644
+  #    contents: |
+  #       cd $home
