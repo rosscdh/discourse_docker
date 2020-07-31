@@ -54,8 +54,8 @@ RUN cd / &&\
     npm install -g uglify-js &&\
     npm install -g svgo
 
-ADD install-nginx /tmp/install-nginx
-RUN /tmp/install-nginx
+# ADD install-nginx /tmp/install-nginx
+# RUN /tmp/install-nginx
 
 RUN apt -y install advancecomp jhead jpegoptim libjpeg-turbo-progs optipng
 
@@ -80,8 +80,8 @@ RUN gem install bundler --force &&\
     rm -rf /usr/local/share/ri/2.6.6/system &&\
     cd / && git clone https://github.com/discourse/pups.git
 
-ADD install-redis /tmp/install-redis
-RUN /tmp/install-redis
+# ADD install-redis /tmp/install-redis
+# RUN /tmp/install-redis
 
 ADD install-imagemagick /tmp/install-imagemagick
 RUN /tmp/install-imagemagick
